@@ -47,7 +47,8 @@ export default function Home() {
     doc.setFontSize(16);
     doc.text('Informe de Detecciones', 105, 50, { align: 'center' });
     doc.setFontSize(16);
-    doc.text(filteredData[0]?.Hostname || 'N/A', 105, 60, { align: 'center' });
+    const hostname = filteredData[0]?.Hostname || 'N/A';
+    doc.text(hostname, 105, 60, { align: 'center' });
 
     // Leyenda de colores en dos filas
     doc.setFontSize(10);
@@ -67,12 +68,9 @@ export default function Home() {
     doc.setFillColor(245, 245, 245);
     doc.circle(110, 78, 3, 'F');
     doc.text('- Desconocido', 115, 80);
-    // doc.setFillColor(10, 10, 1);
-    // doc.circle(145, 78, 3, 'F');
-    // doc.text('- Total', 150, 80);
 
     // Preparar datos para la tabla
-    const tableColumn = ['Producto', 'Recomendación', 'Total', 'Critico', 'Alto', 'Medio', 'Bajo', 'Desconocido'];
+    const tableColumn = ['Producto', 'Recomendación', 'Total', 'Crítico', 'Alto', 'Medio', 'Bajo', 'Desconocido'];
     const tableRows = [];
 
     filteredData.forEach(row => {
@@ -102,11 +100,11 @@ export default function Home() {
         5: { fillColor: [255, 255, 0] },
         6: { fillColor: [0, 255, 0] },
         7: { fillColor: [245, 245, 245] },
-        8: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
       },
     });
 
-    doc.save("table.pdf");
+    const fileName = `Informe de Detecciones - ${hostname}.pdf`;
+    doc.save(fileName);
   };
 
   return (
