@@ -149,7 +149,7 @@ export default function Home() {
         </div>
       )}
       <footer className="bg-gray-200 text-center py-4 mt-4">
-        <p>Created by: pvrker © 2024 Todos los derechos reservados.</p>
+        <p>By: pvrkǝr © 2024 Todos los derechos reservados.</p>
       </footer>
     </div>
   );
