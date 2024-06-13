@@ -1,47 +1,49 @@
 import multer from 'multer';
-//import nextConnect from 'next-connect';
-import { parse } from 'csv-parse/sync';
+import { parse } from 'csv-parse';
+import { createReadStream } from 'fs';
+import { pipeline } from 'stream/promises';
+import { IncomingForm } from 'formidable';
+import fs from 'fs';
 
-// Configuración de multer para almacenamiento en memoria
-const upload = multer({ storage: multer.memoryStorage() });
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
+const upload = multer({ dest: 'uploads/' });
 
-const nextConnect = require('next-connect');
+export default function handler(req, res) {
+  const form = new IncomingForm({ multiples: true });
 
-const handler = nextConnect({
-    onError(error, req, res, next) {
-        console.error(error); // Log del error en la consola del servidor
-        res.status(500).json({ error: "Ha ocurrido un error al procesar la solicitud", message: error.message });
-    },
-    onNoMatch(req, res) {
-        res.status(404).json({ error: "Endpoint no encontrado" });
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Error processing file' });
+      return;
     }
-});
 
-// Endpoint POST para cargar archivos
-handler.post(upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: "No se ha cargado ningún archivo" });
-    }
+    const file = files.file[0];
+    const filePath = file.filepath;
 
     try {
-        // Parsea el CSV de manera sincrónica
-        const records = parse(req.file.buffer, {
-            columns: true,
-            trim: true,
-            skip_empty_lines: true
-        });
+      const records = [];
+      await pipeline(
+        createReadStream(filePath),
+        parse({ columns: true, trim: true, skip_empty_lines: true }),
+        async (source) => {
+          for await (const record of source) {
+            records.push(record);
+          }
+        }
+      );
 
-        res.status(200).json({ data: records });
+      fs.unlinkSync(filePath); // Delete the uploaded file after processing
+
+      res.status(200).json({ data: records });
     } catch (error) {
-        console.error("Error al procesar el archivo CSV:", error);
-        res.status(500).json({ error: "Error al procesar el archivo CSV", message: error.message });
+      console.error('Error processing CSV file:', error);
+      res.status(500).json({ error: 'Error processing CSV file' });
     }
-});
-
-export default handler;
-export const config = {
-    api: {
-        bodyParser: false,
-    },
-};
+  });
+}

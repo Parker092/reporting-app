@@ -9,7 +9,9 @@ const crowdstrikeLogo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeMAAABWC
 export default function Home() {
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState("");
-  const [hostnames, setHostnames] = useState([]);
+  const [groupNames, setGroupNames] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
 
   const handleUpload = async (event) => {
     event.preventDefault();
@@ -30,13 +32,15 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const uniqueHostnames = [...new Set(data.map(item => item.Hostname))];
-    setHostnames(uniqueHostnames);
+    const uniqueGroupNames = [...new Set(data.map(item => item.GroupNames))];
+    setGroupNames(uniqueGroupNames);
   }, [data]);
 
   const filteredData = useMemo(() => {
-    return data.filter(row => row.Hostname && row.Hostname.toLowerCase().includes(filter.toLowerCase()));
+    return data.filter(row => row.GroupNames && row.GroupNames.toLowerCase().includes(filter.toLowerCase()));
   }, [data, filter]);
+
+  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const generatePDF = () => {
     const doc = new jsPDF();
@@ -47,8 +51,8 @@ export default function Home() {
     doc.setFontSize(16);
     doc.text('Informe de Detecciones', 105, 50, { align: 'center' });
     doc.setFontSize(16);
-    const hostname = filteredData[0]?.Hostname || 'N/A';
-    doc.text(hostname, 105, 60, { align: 'center' });
+    const groupName = filteredData[0]?.GroupNames || 'N/A';
+    doc.text(groupName, 105, 60, { align: 'center' });
 
     // Leyenda de colores en dos filas
     doc.setFontSize(10);
@@ -69,87 +73,120 @@ export default function Home() {
     doc.circle(110, 78, 3, 'F');
     doc.text('- Desconocido', 115, 80);
 
-    // Preparar datos para la tabla
-    const tableColumn = ['Producto', 'Recomendación', 'Total', 'Crítico', 'Alto', 'Medio', 'Bajo', 'Desconocido'];
-    const tableRows = [];
+    // Obtener hostnames únicos
+    const uniqueHostnames = [...new Set(filteredData.map(item => item.Hostname))];
 
-    filteredData.forEach(row => {
-      const rowData = [
-        row.Products || '',
-        row.RecommendedRemediation || '',
-        row.Count || 0,
-        row.Critical || 0,
-        row.High || 0,
-        row.Medium || 0,
-        row.Low || 0,
-        row.Unknown || 0
-      ];
-      tableRows.push(rowData);
+    uniqueHostnames.forEach((hostname, index) => {
+      if (index > 0) {
+        doc.addPage();
+      }
+
+      doc.setFontSize(14);
+      doc.text(`Hostname: ${hostname}`, 10, index === 0 ? 90 : 20);
+
+      const hostnameData = filteredData.filter(row => row.Hostname === hostname);
+
+      // Preparar datos para la tabla
+      const tableColumn = ['Producto', 'Recomendación', 'Total', 'Crítico', 'Alto', 'Medio', 'Bajo', 'Desconocido'];
+      const tableRows = [];
+
+      hostnameData.forEach(row => {
+        const rowData = [
+          row.Products || '',
+          row.RecommendedRemediation || '',
+          row.Count || 0,
+          row.Critical || 0,
+          row.High || 0,
+          row.Medium || 0,
+          row.Low || 0,
+          row.Unknown || 0
+        ];
+        tableRows.push(rowData);
+      });
+
+      // Agregar tabla con los datos filtrados
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        startY: index === 0 ? 100 : 30,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0] },
+        columnStyles: {
+          3: { fillColor: [255, 0, 0] },
+          4: { fillColor: [255, 165, 0] },
+          5: { fillColor: [255, 255, 0] },
+          6: { fillColor: [0, 255, 0] },
+          7: { fillColor: [245, 245, 245] },
+        },
+      });
     });
 
-    // Agregar tabla con los datos filtrados
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 88,
-      theme: 'grid',
-      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0] },
-      columnStyles: {
-        3: { fillColor: [255, 0, 0] },
-        4: { fillColor: [255, 165, 0] },
-        5: { fillColor: [255, 255, 0] },
-        6: { fillColor: [0, 255, 0] },
-        7: { fillColor: [245, 245, 245] },
-      },
-    });
-
-    const fileName = `Informe de Detecciones - ${hostname}.pdf`;
+    const fileName = `Informe de Detecciones - ${groupName}.pdf`;
     doc.save(fileName);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <form onSubmit={handleUpload} className="mb-4">
-        <input type="file" name="file" required className="mb-2" />
-        <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">Upload</button>
-      </form>
-      <select 
-        value={filter} 
-        onChange={e => setFilter(e.target.value)} 
-        className="mb-4 px-4 py-2 border border-gray-300 rounded"
-      >
-        <option value="">Seleccionar Hostname</option>
-        {hostnames.map(hostname => (
-          <option key={hostname} value={hostname}>{hostname}</option>
-        ))}
-      </select>
-      {filteredData.length > 0 && (
-        <div>
-          <button onClick={generatePDF} className="mb-4 px-4 py-2 bg-green-500 text-white rounded">Generar PDF</button>
-          <div className="overflow-auto">
-            <table className="min-w-full bg-white border border-gray-200">
-              <thead>
-                <tr>
-                  {Object.keys(filteredData[0]).map((key) => (
-                    <th key={key} className="py-2 px-4 bg-gray-200 border-b border-gray-200 text-left">{key}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((row, index) => (
-                  <tr key={index} className="hover:bg-gray-100">
-                    {Object.values(row).map((value, i) => (
-                      <td key={i} className="py-2 px-4 border-b border-gray-200">{value}</td>
+    <div className="min-h-screen flex flex-col justify-between bg-gray-100 p-4">
+      <div>
+        <form onSubmit={handleUpload} className="mb-4">
+          <input type="file" name="file" required className="mb-2" />
+          <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">Upload</button>
+        </form>
+        <select 
+          value={filter} 
+          onChange={e => setFilter(e.target.value)} 
+          className="mb-4 px-4 py-2 border border-gray-300 rounded"
+        >
+          <option value="">Seleccionar GroupNames</option>
+          {groupNames.map(groupName => (
+            <option key={groupName} value={groupName}>{groupName}</option>
+          ))}
+        </select>
+        {filteredData.length > 0 && (
+          <div>
+            <button onClick={generatePDF} className="mb-4 px-4 py-2 bg-green-500 text-white rounded">Generar PDF</button>
+            <div className="overflow-auto">
+              <table className="min-w-full bg-white border border-gray-200">
+                <thead>
+                  <tr>
+                    {Object.keys(filteredData[0]).map((key) => (
+                      <th key={key} className="py-2 px-4 bg-gray-200 border-b border-gray-200 text-left">{key}</th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paginatedData.map((row, index) => (
+                    <tr key={index} className="hover:bg-gray-100">
+                      {Object.values(row).map((value, i) => (
+                        <td key={i} className="py-2 px-4 border-b border-gray-200">{value}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex justify-between mt-4">
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
+                  disabled={currentPage === 1} 
+                  className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <span>Página {currentPage}</span>
+                <button 
+                  onClick={() => setCurrentPage(prev => prev + 1)} 
+                  disabled={currentPage * itemsPerPage >= filteredData.length} 
+                  className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       <footer className="bg-gray-200 text-center py-4 mt-4">
-        <p>By: pvrkǝr © 2024 Todos los derechos reservados.</p>
+        <p>© Created by: pvrkǝr 2024 Todos los derechos reservados.</p>
       </footer>
     </div>
   );
