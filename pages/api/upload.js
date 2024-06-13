@@ -1,9 +1,8 @@
-import multer from 'multer';
+import { IncomingForm } from 'formidable';
 import { parse } from 'csv-parse';
+import fs from 'fs';
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
-import { IncomingForm } from 'formidable';
-import fs from 'fs';
 
 export const config = {
   api: {
@@ -11,9 +10,12 @@ export const config = {
   },
 };
 
-const upload = multer({ dest: 'uploads/' });
-
 export default function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method Not Allowed' });
+    return;
+  }
+
   const form = new IncomingForm({ multiples: true });
 
   form.parse(req, async (err, fields, files) => {
